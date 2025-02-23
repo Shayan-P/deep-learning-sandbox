@@ -11,12 +11,12 @@ def invalidate_cache():
 def rectified_flow_main():
     invalidate_cache()
     import src.experiments.rectified_flow.rectified_flow
-    src.experiments.rectified_flow.main()
+    src.experiments.rectified_flow.rectified_flow.main()
 
 def rectified_flow_main_straight_experiment():
     invalidate_cache()
     import src.experiments.rectified_flow.rectified_flow
-    src.experiments.rectified_flow.main_straight_experiment()
+    src.experiments.rectified_flow.rectified_flow.main_straight_experiment()
 
 def scratch():
     invalidate_cache()
