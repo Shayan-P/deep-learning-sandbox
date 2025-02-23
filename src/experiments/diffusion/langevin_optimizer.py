@@ -21,6 +21,7 @@ from src.dataset import DatasetWrapper, GMMDistributionMultivariate, GMMOnCircle
 
 
 def main():
+	logger = Logger(config.experiment_name, config.use_wandb, config=config)
 	for name, dataset in [
 		("mixture_gaussian_std=0.1", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.1))),
 		("mixture_gaussian_std=0.4", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.4))),
@@ -38,11 +39,12 @@ def main():
 			var_type='beta_forward',
 			use_wandb=True,
 		))
-		run_experiment(dataset, config)
+		run_experiment(dataset, logger, config)
+	logger.log_end_run()
 
 
-def run_experiment(dataset, config: ConfigDict):
-	logger = Logger(config.experiment_name, config.use_wandb, config=config)
+
+def run_experiment(dataset, logger: Logger, config: ConfigDict):
 
 	device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 	net = NoisePredictor(dim=2, fourier_features_dim=128).to(device)
@@ -67,7 +69,6 @@ def run_experiment(dataset, config: ConfigDict):
 		visualize_config(ddpm, logger)
 		# eval_model(ddpm, logger, next(iter(eval_loader)).to(device))
 		train(dataset, dataloader, eval_loader, ddpm, logger, ckpt, config)
-		logger.log_end_run()
 
 	## experiment starts here
 	############################################################
