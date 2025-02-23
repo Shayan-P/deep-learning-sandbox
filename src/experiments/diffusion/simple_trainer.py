@@ -57,6 +57,8 @@ def train(dataset, dataloader, eval_loader, ddpm: PortableDiffusionModel, logger
 	last_loss = 0.0
 	step = 0
 	step_per_iter = 100
+	epochs_per_ema_update = 1
+	first_ema_update = True
 	epoch_loss = 0.0
 
 	device = next(ddpm.parameters()).device
@@ -69,7 +71,6 @@ def train(dataset, dataloader, eval_loader, ddpm: PortableDiffusionModel, logger
 
 	for epoch in range(config.train_epochs):
 		with tqdm(dataloader) as pbar:
-			# TODO add EMA
 			for x0 in pbar:
 				x0 = x0.to(device, non_blocking=True)
 				loss = ddpm.loss(x=x0)
@@ -94,7 +95,13 @@ def train(dataset, dataloader, eval_loader, ddpm: PortableDiffusionModel, logger
 					losses.append(last_loss / step_per_iter)
 					last_loss = 0.0
 				
-				# update EMA
+		# update EMA
+		if epoch % epochs_per_ema_update == 0:
+			if first_ema_update:
+				ema_ddpm.load_state_dict({k: v.clone() for k, v in ddpm.state_dict().items()})
+				first_ema_update = False
+			else:
+				# this is a bottleneck of not utilizing gpu well
 				ema_state_dict = ema_ddpm.state_dict()
 				ddpm_state_dict = ddpm.state_dict()
 				ema_ddpm.load_state_dict({
@@ -103,22 +110,21 @@ def train(dataset, dataloader, eval_loader, ddpm: PortableDiffusionModel, logger
 				})
 
 
-			
-			epoch_loss /= len(dataloader)
-			logger.log_step(epoch)
-			logger.log(epoch_loss=epoch_loss)
+		epoch_loss /= len(dataloader)
+		logger.log_step(epoch)
+		logger.log(epoch_loss=epoch_loss)
 
-			plt.figure(figsize=(7, 5))
-			plt.plot(losses)
-			show_plot("loss")
+		plt.figure(figsize=(7, 5))
+		plt.plot(losses)
+		show_plot("loss")
 
-			grad_norms = grad_norms[-2000:]
-			plt.plot(grad_norms)
-			grad_max_norms = grad_max_norms[-2000:]
-			plt.plot(grad_max_norms)
-			plt.legend(["grad_norm", "grad_max_norm"])
-			show_plot('grad')
-			logger.log(grad_norm=grad_norm, max_grad_norm=max_grad_norm)
+		grad_norms = grad_norms[-2000:]
+		plt.plot(grad_norms)
+		grad_max_norms = grad_max_norms[-2000:]
+		plt.plot(grad_max_norms)
+		plt.legend(["grad_norm", "grad_max_norm"])
+		show_plot('grad')
+		logger.log(grad_norm=grad_norm, max_grad_norm=max_grad_norm)
 
 		if epoch % 30 == 0:
 			ckpt.save_model(ddpm)
