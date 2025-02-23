@@ -11,14 +11,18 @@ if [ "$answer" != "y" ]; then
     exit 1
 fi
 
-echo "installing miniconda"
-CONDA_PATH="/workspace/miniconda3"
+if ! command -v conda &> /dev/null; then
+    # Conda not found, proceed with installation
 
-mkdir -p $CONDA_PATH
-wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $CONDA_PATH/miniconda.sh
-bash $CONDA_PATH/miniconda.sh -b -u -p $CONDA_PATH
-rm $CONDA_PATH/miniconda.sh
-source ~/.bashrc # just to make sure the path is set and conda is available
+    echo "installing miniconda"
+    CONDA_PATH="/workspace/miniconda3"
+
+    mkdir -p $CONDA_PATH
+    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $CONDA_PATH/miniconda.sh
+    bash $CONDA_PATH/miniconda.sh -b -u -p $CONDA_PATH
+    rm $CONDA_PATH/miniconda.sh
+    $CONDA_PATH/bin/conda init bash
+    source ~/.bashrc # just to make sure the path is set and conda is available
 
 echo "activating conda environment"
 conda create -n ml python=3.10
