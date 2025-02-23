@@ -1,5 +1,51 @@
 import torch
+import einops as eo
 from src.utils import bb
+
+
+class GMMDistributionMultivariate(torch.distributions.Distribution):
+    def __init__(self, means, stds, weights):
+        """
+        means: [..., N, D]
+        stds: [..., N, D, D]
+        weights: [..., N]
+        """
+        self.normals = torch.distributions.MultivariateNormal(means, stds)
+        self.categorical = torch.distributions.Categorical(weights)
+
+        self.weights = weights / weights.sum(dim=-1, keepdim=True) # normalize
+        self.weights_log = torch.log(self.weights)
+
+        self.n = means.shape[-2]
+        assert stds.shape[-3] == self.n
+        assert weights.shape[-1] == self.n
+
+        self.d = means.shape[-1]
+        assert stds.shape[-1] == self.d
+        assert stds.shape[-2] == self.d
+
+        self.repeat_shape = self.weights.shape[:-1]
+        assert self.repeat_shape == means.shape[:-2]
+        assert self.repeat_shape == stds.shape[:-3]
+        assert self.repeat_shape == weights.shape[:-1]
+
+    def log_prob(self, x):
+        """
+        shape(x): [..., D]
+        """
+        x = eo.repeat(x, "... d -> ... n d", n=self.n)
+        log_prob = self.normals.log_prob(x) + self.weights_log
+        agg_log_prob = torch.logsumexp(log_prob, dim=-1)
+        return agg_log_prob
+    
+    def sample(self, shape):
+        """
+        shape: [..., D]
+        """
+        indices = self.categorical.sample(shape)
+        samples = self.normals.sample(shape)
+        samples_selected = torch.take_along_dim(samples, eo.repeat(indices, "... -> ... 1 d", d=self.d), dim=-2).squeeze(-2)
+        return samples_selected
 
 
 class SimpleNormal2D(torch.utils.data.Dataset):
@@ -87,3 +133,29 @@ class Spiral2D(torch.utils.data.Dataset):
         assert len(log_prob.shape) == 1
         log_prob = log_prob - torch.logsumexp(log_prob, dim=0)
         return log_prob
+
+
+def demo_gmm():
+    n = 10
+    theta = torch.arange(n) * torch.pi * 2 / n
+    means = torch.stack([torch.cos(theta), torch.sin(theta)], dim=-1)
+    stds = torch.eye(2).repeat(n, 1, 1) * 0.03
+
+    dist = GMMDistributionMultivariate(
+        means=means,
+        stds=stds,
+        weights=torch.ones(n) / n,
+    )
+
+    samples = dist.sample((10000,))
+
+    plot_scatter(samples)
+    show_plot("gmm_dist")
+
+    x = torch.linspace(-1.5, 1.5, 50)
+    y = torch.linspace(-1.5, 1.5, 50)
+    X, Y = torch.meshgrid(x, y, indexing="ij")
+    pts = torch.stack([X, Y], dim=-1)
+    Z = dist.log_prob(pts)
+    plot_image(Z.exp(), nx=50, ny=50, lx=-1.5, ly=-1.5, rx=1.5, ry=1.5)
+    show_plot("gmm_dist_log_prob")

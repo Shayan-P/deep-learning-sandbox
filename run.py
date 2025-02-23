@@ -18,6 +18,10 @@ def rectified_flow_main_straight_experiment():
     import src.experiments.rectified_flow.rectified_flow
     src.experiments.rectified_flow.main_straight_experiment()
 
+def scratch():
+    invalidate_cache()
+    import src.scratch
+    src.scratch.main()
 
 if __name__ == "__main__":
     funcs = {

@@ -2,7 +2,8 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from src.utils import bb
+from src.visualization import colorful_curve, plot_image, plot_scatter
+from src.utils import show_plot
 
 
 def colorful_curve(xs, ys):
@@ -41,6 +42,7 @@ def plot_image(image, ax=None, nx=None, ny=None, lx=None, ly=None, rx=None, ry=N
         extent=[lx, rx, ly, ry]
         kwargs['extent'] = extent
     im = ax.imshow(image, **kwargs)
+    plt.colorbar(im, ax=ax)
     return im
 
 def plot_line(ys):
