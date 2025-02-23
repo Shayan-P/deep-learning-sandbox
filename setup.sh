@@ -12,7 +12,7 @@ if [ "$answer" != "y" ]; then
 fi
 
 echo "installing miniconda"
-CONDA_PATH="/workdir/miniconda3"
+CONDA_PATH="/workspace/miniconda3"
 
 mkdir -p $CONDA_PATH
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O $CONDA_PATH/miniconda.sh
@@ -26,6 +26,12 @@ conda activate ml
 
 echo "installing pipx"
 apt update
+
+echo "installing apt dependencies"
+apt install tmux
+apt install htop
+apt install nvtop
+apt install nano
 
 echo "installing poetry"
 pipx install poetry
