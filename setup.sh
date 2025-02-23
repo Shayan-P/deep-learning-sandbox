@@ -23,6 +23,7 @@ if ! command -v conda &> /dev/null; then
     rm $CONDA_PATH/miniconda.sh
     $CONDA_PATH/bin/conda init bash
     source ~/.bashrc # just to make sure the path is set and conda is available
+fi
 
 echo "activating conda environment"
 conda create -n ml python=3.10
@@ -47,3 +48,6 @@ echo "installing dependencies with poetry"
 poetry config virtualenvs.create false
 poetry config virtualenvs.in-project false
 poetry install
+
+
+echo "Setup complete!"
