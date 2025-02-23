@@ -21,7 +21,6 @@ from src.dataset import DatasetWrapper, GMMDistributionMultivariate, GMMOnCircle
 
 
 def main():
-	logger = Logger(config.experiment_name, config.use_wandb, config=config)
 	for name, dataset in [
 		("mixture_gaussian_std=0.1", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.1))),
 		("mixture_gaussian_std=0.4", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.4))),
@@ -39,12 +38,11 @@ def main():
 			var_type='beta_forward',
 			use_wandb=True,
 		))
-		run_experiment(dataset, logger, config)
-	logger.log_end_run()
-
+		run_experiment(dataset, config)
 
 
 def run_experiment(dataset, logger: Logger, config: ConfigDict):
+	logger = Logger(config.experiment_name, config.use_wandb, config=config)
 
 	device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 	net = NoisePredictor(dim=2, fourier_features_dim=128).to(device)
@@ -102,18 +100,7 @@ def run_experiment(dataset, logger: Logger, config: ConfigDict):
 		lamda *= 1.7
 	logger.log_plot("samples_repeated_denoising")
 
-
-	# for i in range(100):
-	#     t = torch.ones(n, dtype=torch.long, device=device) * i
-	#     t = t.to(x.device)
-	#     x = self.p_sample(x, t, clip=clip)
-	#     if include_path:
-	#         path.append(x.clone())
-	
-	# if include_path:
-	#     return x, torch.stack(path)
-	# else:
-	#     return x
+	logger.log_end_run()
 
 
 if __name__ == "__main__":
