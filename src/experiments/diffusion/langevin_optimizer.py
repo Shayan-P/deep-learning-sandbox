@@ -17,22 +17,31 @@ from src.utils import get_pts_mesh
 from src.visualization import colorful_curve, plot_mean_and_std, plot_image, plot_line, plot_scatter
 from src.experiments.diffusion.model import PortableDiffusionModel, NoisePredictor
 from src.experiments.diffusion.simple_trainer import train, visualize_config, eval_model
-from src.dataset import DatasetWrapper, GMMDistributionMultivariate, GMMOnCircle2D
+from src.dataset import DatasetWrapper, GMMDistributionMultivariate, GMMOnCircle2D, Spiral2D
 
 
 def main():
-	config = ConfigDict(dict(
-		train_epochs=150,
-		resume=True,
-		train_if_exists=False,
-		experiment_name="langevin_optimizer",
-		lr=1e-3,
-		loss_type='kl',
-		mc_loss=False,
-		var_type='beta_forward',
-		use_wandb=False,
-	))
+	for name, dataset in [
+		("mixture_gaussian_std=0.1", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.1))),
+		("mixture_gaussian_std=0.4", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.4))),
+		("mixture_gaussian_std=0.8", DatasetWrapper(n=10000, dist=GMMOnCircle2D(n=6, std=0.8))),
+		("spiral", Spiral2D(n=10000)),
+	]:
+		config = ConfigDict(dict(
+			train_epochs=150,
+			resume=False,
+			train_if_exists=True,
+			experiment_name=f"langevin_optimizer_dataset={name}",
+			lr=1e-3,
+			loss_type='kl',
+			mc_loss=False,
+			var_type='beta_forward',
+			use_wandb=False,
+		))
+		run_experiment(dataset, config)
 
+
+def run_experiment(dataset, config: ConfigDict):
 	logger = Logger(config.experiment_name, config.use_wandb, config=config)
 
 	device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -44,9 +53,6 @@ def main():
 									mc_loss=config.mc_loss,
 									loss_type=config.loss_type,
 									).to(device)
-	dataset = DatasetWrapper(n=10000,
-		dist=GMMOnCircle2D(n=6, std=0.1)
-	)
 
 	dataloader = DataLoader(dataset, batch_size=100, shuffle=True)
 	eval_loader = DataLoader(dataset, batch_size=256, shuffle=True)
@@ -71,7 +77,7 @@ def main():
 	n = 1000
 	samples = ddpm.sample(n=n)
 	plot_scatter(samples)
-	show_plot("samples")
+	logger.log_plot("samples")
 
 	# repeating the last denoising step
 	fig, axs = plt.subplots(3, 3, figsize=(10, 10))
@@ -92,8 +98,8 @@ def main():
 
 			# x = ddpm.p_sample(x, t, clip=10)
 
-		lamda *= 2.0
-	show_plot("samples_repeated_denoising")
+		lamda *= 1.7
+	logger.log_plot("samples_repeated_denoising")
 
 
 	# for i in range(100):
