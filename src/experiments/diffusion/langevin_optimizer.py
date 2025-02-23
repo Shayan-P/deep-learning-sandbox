@@ -41,7 +41,7 @@ def main():
 		run_experiment(dataset, config)
 
 
-def run_experiment(dataset, logger: Logger, config: ConfigDict):
+def run_experiment(dataset, config: ConfigDict):
 	logger = Logger(config.experiment_name, config.use_wandb, config=config)
 
 	device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
