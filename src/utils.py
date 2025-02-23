@@ -94,6 +94,9 @@ class Checkpointer:
             return
         device = (next(model.parameters())).device
         model.load_state_dict(torch.load(path, map_location=device))
+    
+    def any_checkpoint_exists(self):
+        return os.path.isfile(self.get_path())
 
 
 def batchify_function(func, batch_size):

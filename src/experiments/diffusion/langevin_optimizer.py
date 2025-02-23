@@ -1,126 +1,113 @@
-### experimenting with Langeving Dynamics
-
-import torch
 import matplotlib.pyplot as plt
+import copy
+import torch
+import torch.nn as nn
+import einops as eo
 import numpy as np
-from src.visualization import colorful_curve
-from src.utils import show_plot
 
-def experiment(distribution, starting_point, lr, num_steps, lamda=1.0):
-    x = starting_point
-    if not isinstance(x, torch.Tensor):
-        x = torch.tensor(x)
-    if not isinstance(lr, torch.Tensor):
-        lr = torch.tensor(lr)
-
-    x = x.detach()
-    path = [x]
-
-    for i in range(num_steps):
-        x = x.clone().detach().requires_grad_(True)
-        score = distribution.log_prob(x)
-        grad = torch.autograd.grad(score.sum(), x)[0]
-        nxt = x + (lr/2) * grad * lamda + torch.randn_like(x) * torch.sqrt(lr)
-        x = nxt.detach()
-        path.append(x)
-
-    path = torch.stack(path)
-    return path
-
-
-def plot_distribution(distribution, l, r, nx, device):
-    xs = torch.linspace(l, r, nx, device=device)
-    ys = distribution.log_prob(xs).exp()
-    plt.plot(xs.cpu(), ys.cpu())
-
-def visualize_path(path, distribution):
-    fig = plt.figure(figsize=(10, 10))
-
-    l = path.min().item()
-    r = path.max().item()
-    nx = 100
-    plot_distribution(distribution, l=l, r=r, nx=nx, device=path.device)
-
-    path_x = path
-    path_y = distribution.log_prob(path_x).exp()
-    lc = colorful_curve(path_x.cpu(), path_y.cpu())
-    last = 5
-    plt.scatter(path_x[-last:].cpu(), path_y[-last:].cpu(), c=np.linspace(0, 1, last), cmap='cool', norm=plt.Normalize(0, 1), alpha=1)
-    plt.colorbar(lc)
-    show_plot("langevin")
-
-    return path
-
-def get_bimodal_distribution(device, mu1=-2.0, mu2=2.0, sigma1=0.5, sigma2=0.5, mix=0.5):
-    # Create a mixture of two Gaussians
-    dist1 = torch.distributions.Normal(
-        torch.tensor(mu1, device=device),
-        torch.tensor(sigma1, device=device)
-    )
-    dist2 = torch.distributions.Normal(
-        torch.tensor(mu2, device=device), 
-        torch.tensor(sigma2, device=device)
-    )
-    
-    class BimodalDistribution:
-        def __init__(self, dist1, dist2, mixing_coef):
-            self.dist1 = dist1
-            self.dist2 = dist2
-            self.mixing_coef = mixing_coef
-            
-        def log_prob(self, value):
-            # Compute log probability for mixture model
-            # p(x) = α*p1(x) + (1-α)*p2(x)
-            # log p(x) = log(α*p1(x) + (1-α)*p2(x))
-            log_prob1 = self.dist1.log_prob(value)
-            log_prob2 = self.dist2.log_prob(value)
-            log_mix_coef = torch.log(torch.tensor(self.mixing_coef, device=value.device))
-            log_1_mix_coef = torch.log(torch.tensor(1 - self.mixing_coef, device=value.device))
-            log_prob = torch.logsumexp(torch.stack([
-                log_mix_coef + log_prob1,
-                log_1_mix_coef + log_prob2
-            ]), dim=0)
-            return log_prob
-            
-    return BimodalDistribution(dist1, dist2, mix)
-
-
-def get_distribution(device, lamda):
-    # return torch.distributions.normal.Normal(
-    #     torch.tensor(0.0, device=device),
-    #     torch.sqrt(torch.tensor(1.0/lamda, device=device))
-    # )
-    dist = get_bimodal_distribution(device,
-                                    mu1=-1.0, mu2=1.0,
-                                    sigma1=0.2, sigma2=0.2,
-                                    mix=0.5)
-    return dist
+from src.utils import batchify_function
+from functools import partial
+from src.utils import Logger
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from ml_collections import ConfigDict
+from src.utils import bb, Checkpointer, show_plot
+from src.visualization import plot_vector_field, plot_scatter
+from src.utils import get_pts_mesh
+from src.visualization import colorful_curve, plot_mean_and_std, plot_image, plot_line, plot_scatter
+from src.experiments.diffusion.model import PortableDiffusionModel, NoisePredictor
+from src.experiments.diffusion.simple_trainer import train, visualize_config, eval_model
+from src.dataset import DatasetWrapper, GMMDistributionMultivariate, GMMOnCircle2D
 
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    lamda = 100.0
-    distribution_lambda = get_distribution(device, lamda)
-    distribution = get_distribution(device, 1.0)
+	config = ConfigDict(dict(
+		train_epochs=150,
+		resume=True,
+		train_if_exists=False,
+		experiment_name="langevin_optimizer",
+		lr=1e-3,
+		loss_type='kl',
+		mc_loss=False,
+		var_type='beta_forward',
+		use_wandb=False,
+	))
 
-    lr = 0.001
-    # todo why do we get Nan when lambda is too high?!
+	logger = Logger(config.experiment_name, config.use_wandb, config=config)
 
-    num_steps = 10000
-    starting_point = torch.tensor(-2.0)
-    # path = experiment(distribution, starting_point, lr, num_steps)
-    # visualize_path(path, distribution)
+	device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+	net = NoisePredictor(dim=2, fourier_features_dim=128).to(device)
+	ddpm = PortableDiffusionModel(dim=2,
+									n_steps=200,
+									net=net,
+									var_type=config.var_type,
+									mc_loss=config.mc_loss,
+									loss_type=config.loss_type,
+									).to(device)
+	dataset = DatasetWrapper(n=10000,
+		dist=GMMOnCircle2D(n=6, std=0.1)
+	)
 
-    starting_point = torch.tensor(-1.0).repeat(1000).to(device)
-    path = experiment(distribution, starting_point, lr, num_steps, lamda=lamda)
-    final_x = path[-1].cpu()
+	dataloader = DataLoader(dataset, batch_size=100, shuffle=True)
+	eval_loader = DataLoader(dataset, batch_size=256, shuffle=True)
 
-    fig = plt.figure(figsize=(10, 10))
-    plt.hist(final_x.numpy(), bins=100, density=True)
-    plot_distribution(distribution_lambda, l=-3, r=3, nx=100, device=device)
-    show_plot("distribution")
-    visualize_path(path[:, 0], distribution_lambda)
+	ckpt = Checkpointer(name=config.experiment_name)
+	if config.resume:
+		ckpt.load_model(ddpm)
+	
+	if ckpt.any_checkpoint_exists() and (not config.train_if_exists):
+		print("Checkpoint found, skipping training")
+	else:
+		visualize_config(ddpm, logger)
+		# eval_model(ddpm, logger, next(iter(eval_loader)).to(device))
+		train(dataset, dataloader, eval_loader, ddpm, logger, ckpt, config)
+		logger.log_end_run()
+
+	## experiment starts here
+	############################################################
+
+	# eval_model(ddpm, logger, next(iter(eval_loader)).to(device))
+
+	n = 1000
+	samples = ddpm.sample(n=n)
+	plot_scatter(samples)
+	show_plot("samples")
+
+	# repeating the last denoising step
+	fig, axs = plt.subplots(3, 3, figsize=(10, 10))
+	axs = axs.reshape(-1)
+
+	x = samples
+
+	per_step = 20
+	lamda = torch.tensor(1.0, device=device)
+	for i in range(9):
+		plot_scatter(x, ax=axs[i])
+		axs[i].set_title(f"step {i * per_step} / lambda={lamda.item():.2f}")
+		for j in range(per_step):
+			t = torch.ones(n, dtype=torch.long, device=device) * 0 # repeat 0
+			mean, var, log_var = ddpm.p_mean_variance(x, t, clip=10)
+			noise = torch.randn_like(x)
+			x = x + (mean - x) * lamda + torch.exp(0.5 * log_var) * noise
+
+			# x = ddpm.p_sample(x, t, clip=10)
+
+		lamda *= 2.0
+	show_plot("samples_repeated_denoising")
+
+
+	# for i in range(100):
+	#     t = torch.ones(n, dtype=torch.long, device=device) * i
+	#     t = t.to(x.device)
+	#     x = self.p_sample(x, t, clip=clip)
+	#     if include_path:
+	#         path.append(x.clone())
+	
+	# if include_path:
+	#     return x, torch.stack(path)
+	# else:
+	#     return x
 
 
 if __name__ == "__main__":
-    main()
+	main()

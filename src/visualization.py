@@ -2,7 +2,6 @@ import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from src.visualization import colorful_curve, plot_image, plot_scatter
 from src.utils import show_plot
 
 
@@ -30,7 +29,7 @@ def plot_mean_and_std(idxs, mean, std):
     plt.fill_between(idxs, mean - std, mean + std, alpha=0.2)
 
 
-def plot_image(image, ax=None, nx=None, ny=None, lx=None, ly=None, rx=None, ry=None):
+def plot_image(image, ax=None, nx=None, ny=None, lx=None, ly=None, rx=None, ry=None, plot_colorbar=False):
     if ax is None:
         ax = plt.gca()
     if isinstance(image, torch.Tensor):
@@ -42,7 +41,8 @@ def plot_image(image, ax=None, nx=None, ny=None, lx=None, ly=None, rx=None, ry=N
         extent=[lx, rx, ly, ry]
         kwargs['extent'] = extent
     im = ax.imshow(image, **kwargs)
-    plt.colorbar(im, ax=ax)
+    if plot_colorbar:
+        plt.colorbar(im, ax=ax)
     return im
 
 def plot_line(ys):

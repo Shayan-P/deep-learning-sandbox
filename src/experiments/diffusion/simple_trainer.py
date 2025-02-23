@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from ml_collections import ConfigDict
 from src.utils import bb, Checkpointer, show_plot
-from src.dataset import SimpleNormal2D, SimpleDataset2D, Spiral2D
+from src.dataset import SimpleNormal2D, GMM2D, Spiral2D
 from src.visualization import plot_vector_field
 from src.utils import get_pts_mesh
 from src.visualization import colorful_curve, plot_mean_and_std, plot_image, plot_line
@@ -266,7 +266,7 @@ def run_experiment(config: ConfigDict):
 	if config.dataset == 'simple_gaussian':
 		dataset = SimpleNormal2D(n=10000, std=1.0)
 	elif config.dataset == 'mixture_gaussian':
-		dataset = SimpleDataset2D(each=10000, std=0.1)
+		dataset = GMM2D(each=10000, std=0.1)
 	elif config.dataset == 'spiral':
 		dataset = Spiral2D(n=10000)
 	else:

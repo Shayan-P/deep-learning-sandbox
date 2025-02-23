@@ -23,6 +23,11 @@ def scratch():
     import src.scratch
     src.scratch.main()
 
+def langevin_optimizer():
+    invalidate_cache()
+    import src.experiments.diffusion.langevin_optimizer
+    src.experiments.diffusion.langevin_optimizer.main()
+
 if __name__ == "__main__":
     funcs = {
         name: func

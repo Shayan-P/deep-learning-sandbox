@@ -3,10 +3,10 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 import einops as eo
-from src.utils import batchify_function
+from src.utils import batchify_function, bb
 from functools import partial
 
-MAX_BATCH_SIZE = 10000
+MAX_BATCH_SIZE = 1000
 
 def run_batched(func, *args, **kwargs):
 	func = partial(func, **kwargs)

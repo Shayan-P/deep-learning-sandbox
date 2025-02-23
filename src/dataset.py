@@ -1,6 +1,8 @@
 import torch
 import einops as eo
 from src.utils import bb
+from src.visualization import plot_scatter, plot_image
+from src.utils import show_plot
 
 
 class GMMDistributionMultivariate(torch.distributions.Distribution):
@@ -46,6 +48,37 @@ class GMMDistributionMultivariate(torch.distributions.Distribution):
         samples = self.normals.sample(shape)
         samples_selected = torch.take_along_dim(samples, eo.repeat(indices, "... -> ... 1 d", d=self.d), dim=-2).squeeze(-2)
         return samples_selected
+
+
+class GMMOnCircle2D(GMMDistributionMultivariate):
+    def __init__(self, n, std):
+        theta = torch.arange(n) * torch.pi * 2 / n
+        means = torch.stack([torch.cos(theta), torch.sin(theta)], dim=-1)
+        stds = torch.eye(2).repeat(n, 1, 1) * (std ** 2)
+        super().__init__(
+            means=means,
+            stds=stds,
+            weights=torch.ones(n) / n,
+        )
+    
+
+class DatasetWrapper(torch.utils.data.Dataset):
+    def __init__(self, n, dist: torch.distributions.Distribution):
+        self.dist = dist
+        self.n = n
+        self.samples = dist.sample((n,))
+
+    def __len__(self):
+        return self.n
+
+    def __getitem__(self, idx):
+        return self.samples[idx]
+
+    def analytic_score(self, x):
+        device = self.dist.sample((1,)).device # hacky way to get device
+        if not isinstance(x, torch.Tensor):
+            x = torch.tensor(x, device=device)
+        return self.dist.log_prob(x)
 
 
 class SimpleNormal2D(torch.utils.data.Dataset):
