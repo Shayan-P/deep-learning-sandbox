@@ -1,0 +1,7 @@
+**/__pycache__/
+checkpoints/**
+tmp_images/**
+src/scratch.py
+.vscode/**
+wandb/**
+**/*scratch.py
