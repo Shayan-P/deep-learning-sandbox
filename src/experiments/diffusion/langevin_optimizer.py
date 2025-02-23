@@ -36,7 +36,7 @@ def main():
 			loss_type='kl',
 			mc_loss=False,
 			var_type='beta_forward',
-			use_wandb=False,
+			use_wandb=True,
 		))
 		run_experiment(dataset, config)
 
