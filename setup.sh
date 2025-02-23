@@ -32,5 +32,8 @@ pipx install poetry
 pipx ensurepath
 source ~/.bashrc # just to make sure the path is set
 
-echo "installing dependencies"
+echo "installing dependencies with poetry"
+# Configure poetry to not create virtual environment and use conda instead
+poetry config virtualenvs.create false
+poetry config virtualenvs.in-project false
 poetry install
