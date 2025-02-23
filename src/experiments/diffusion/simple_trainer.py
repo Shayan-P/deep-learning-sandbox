@@ -57,7 +57,7 @@ def train(dataset, dataloader, eval_loader, ddpm: PortableDiffusionModel, logger
 	last_loss = 0.0
 	step = 0
 	step_per_iter = 100
-	epochs_per_ema_update = 1
+	batches_per_ema_update = 2
 	first_ema_update = True
 	epoch_loss = 0.0
 
@@ -95,19 +95,19 @@ def train(dataset, dataloader, eval_loader, ddpm: PortableDiffusionModel, logger
 					losses.append(last_loss / step_per_iter)
 					last_loss = 0.0
 				
-		# update EMA
-		if epoch % epochs_per_ema_update == 0:
-			if first_ema_update:
-				ema_ddpm.load_state_dict({k: v.clone() for k, v in ddpm.state_dict().items()})
-				first_ema_update = False
-			else:
-				# this is a bottleneck of not utilizing gpu well
-				ema_state_dict = ema_ddpm.state_dict()
-				ddpm_state_dict = ddpm.state_dict()
-				ema_ddpm.load_state_dict({
-					k: v * EMA + ddpm_state_dict[k].clone() * (1 - EMA)
-					for k, v in ema_state_dict.items()
-				})
+			# update EMA
+			if step % batches_per_ema_update == 0:
+				if first_ema_update:
+					ema_ddpm.load_state_dict({k: v.clone() for k, v in ddpm.state_dict().items()})
+					first_ema_update = False
+				else:
+					# this is a bottleneck of not utilizing gpu well
+					ema_state_dict = ema_ddpm.state_dict()
+					ddpm_state_dict = ddpm.state_dict()
+					ema_ddpm.load_state_dict({
+						k: v * EMA + ddpm_state_dict[k].clone() * (1 - EMA)
+						for k, v in ema_state_dict.items()
+					})
 
 
 		epoch_loss /= len(dataloader)
