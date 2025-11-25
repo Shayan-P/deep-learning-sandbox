@@ -6,3 +6,4 @@ src/scratch.py
 wandb/**
 **/*scratch.py
 todo
+src/scratch/**
